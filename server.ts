@@ -1,6 +1,8 @@
 // server.ts - Next.js Standalone + Socket.IO
 import { setupSocket } from '@/lib/socket';
-import { createServer } from 'http';
+import fs from 'fs';
+import https from 'https';
+import { createServer as createHttpServer } from 'http';
 import { Server } from 'socket.io';
 import next from 'next';
 
@@ -21,12 +23,13 @@ async function createCustomServer() {
     await nextApp.prepare();
     const handle = nextApp.getRequestHandler();
 
-    const server = createServer((req, res) => {
-      if (req.url?.startsWith('/api/socketio')) {
-        return;
-      }
-      handle(req, res);
-    });
+    // Replace createServer(...) with HTTPS server if certs exist
+    const certPath = process.env.LOCAL_CERT || './localhost+2.pem';
+    const keyPath = process.env.LOCAL_KEY || './localhost+2-key.pem';
+
+    const server = (fs.existsSync(certPath) && fs.existsSync(keyPath))
+      ? https.createServer({ cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) }, (req, res) => { if (req.url?.startsWith('/api/socketio')) return; handle(req, res); })
+      : createHttpServer((req, res) => { if (req.url?.startsWith('/api/socketio')) return; handle(req, res); });
 
     const io = new Server(server, {
       path: '/api/socketio',
