@@ -31,22 +31,25 @@ export async function POST(request: NextRequest) {
     const categoryIdParsed = categoryId && /^\d+$/.test(categoryId) ? Number(categoryId) : null
     const priorityIdParsed = Number.isNaN(priorityId) ? null : priorityId
 
+    // Build create data and only include FKs when valid
+    const createData: any = {
+      caseCode,
+      title,
+      description,
+      address,
+      latitude,
+      longitude,
+      isPublic,
+      statusId: 1, // Submitted
+    }
+    if (categoryIdParsed !== null) createData.categoryId = categoryIdParsed
+    if (priorityIdParsed !== null) createData.priorityId = priorityIdParsed
+
     // Create incident
     let incident
     try {
       incident = await prisma.incident.create({
-        data: {
-          caseCode,
-          title,
-          description,
-          categoryId: categoryIdParsed,
-          priorityId: priorityIdParsed,
-          address,
-          latitude,
-          longitude,
-          isPublic,
-          statusId: 1, // Submitted
-        },
+        data: createData,
         include: {
           category: true,
           priority: true,
@@ -54,9 +57,16 @@ export async function POST(request: NextRequest) {
         }
       })
     } catch (prismaErr: any) {
+      // richer logging to inspect error object (Prisma errors often have non-enumerable props)
+      console.error('Prisma create incident error name:', prismaErr?.name)
       console.error('Prisma create incident error code:', prismaErr?.code)
-      console.error('Prisma meta:', prismaErr?.meta)
-      return NextResponse.json({ error: 'Failed to create incident (db error)' }, { status: 500 })
+      console.error('Prisma create incident error message:', prismaErr?.message)
+      console.error('Prisma create incident error keys:', Object.getOwnPropertyNames(prismaErr))
+      try {
+        console.error('Prisma error full (json):', JSON.stringify(prismaErr, Object.getOwnPropertyNames(prismaErr)))
+      } catch (e) { /* ignore stringify errors */ }
+
+      return NextResponse.json({ error: 'Failed to create incident (db error)', detail: prismaErr?.message || null }, { status: 500 })
     }
 
     // Handle file attachments
