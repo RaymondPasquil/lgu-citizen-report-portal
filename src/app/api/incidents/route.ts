@@ -27,26 +27,37 @@ export async function POST(request: NextRequest) {
     })
     const caseCode = `PRV-${year}-${String(count + 1).padStart(6, '0')}`
 
+    // normalize IDs
+    const categoryIdParsed = categoryId && /^\d+$/.test(categoryId) ? Number(categoryId) : null
+    const priorityIdParsed = Number.isNaN(priorityId) ? null : priorityId
+
     // Create incident
-    const incident = await prisma.incident.create({
-      data: {
-        caseCode,
-        title,
-        description,
-        categoryId: categoryId || null,
-        priorityId,
-        address,
-        latitude,
-        longitude,
-        isPublic,
-        statusId: 1, // Submitted
-      },
-      include: {
-        category: true,
-        priority: true,
-        status: true,
-      }
-    })
+    let incident
+    try {
+      incident = await prisma.incident.create({
+        data: {
+          caseCode,
+          title,
+          description,
+          categoryId: categoryIdParsed,
+          priorityId: priorityIdParsed,
+          address,
+          latitude,
+          longitude,
+          isPublic,
+          statusId: 1, // Submitted
+        },
+        include: {
+          category: true,
+          priority: true,
+          status: true,
+        }
+      })
+    } catch (prismaErr: any) {
+      console.error('Prisma create incident error code:', prismaErr?.code)
+      console.error('Prisma meta:', prismaErr?.meta)
+      return NextResponse.json({ error: 'Failed to create incident (db error)' }, { status: 500 })
+    }
 
     // Handle file attachments
     const attachments: string[] = []
@@ -121,7 +132,7 @@ export async function GET(request: NextRequest) {
     const where: any = {}
     
     if (status) where.statusId = parseInt(status)
-    if (category) where.categoryId = category
+    if (category) where.categoryId = /^\d+$/.test(category) ? Number(category) : category
     if (priority) where.priorityId = parseInt(priority)
     if (publicOnly) where.isPublic = true
 
