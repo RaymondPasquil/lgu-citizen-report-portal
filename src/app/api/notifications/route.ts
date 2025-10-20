@@ -130,7 +130,7 @@ System Notification
     // Store notification in database (optional)
     await prisma.incidentUpdate.create({
       data: {
-        incidentId,
+        incidentId: typeof incidentId === 'string' && /^\d+$/.test(incidentId) ? Number(incidentId) : incidentId,
         note: `Notification sent: ${type} - ${subject}`,
         actorId: null, // System action
       }
